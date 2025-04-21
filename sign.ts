@@ -1,23 +1,27 @@
-import { createSign, createVerify } from "node:crypto";
-import { privateKey, publicKey } from "./keypair.ts";
+import { signingKeyPair } from "./keypair.ts";
 
 const message = "this data must be signed";
+const encodedMessage = new TextEncoder().encode(message);
 
-// SIGN
+// Sign
+const signature = await crypto.subtle.sign(
+  { name: "RSASSA-PKCS1-v1_5" },
+  signingKeyPair.privateKey,
+  encodedMessage
+);
 
-const signer = createSign("rsa-sha256");
+// Verify
+const isVerified = await crypto.subtle.verify(
+  { name: "RSASSA-PKCS1-v1_5" },
+  signingKeyPair.publicKey,
+  signature,
+  encodedMessage
+);
 
-signer.update(message);
+// Output
+const signatureHex = Array.from(new Uint8Array(signature))
+  .map((b) => b.toString(16).padStart(2, "0"))
+  .join("");
 
-const signature = signer.sign(privateKey, "hex");
-
-// VERIFY
-
-const verifier = createVerify("rsa-sha256");
-
-verifier.update(message);
-
-const isVerified = verifier.verify(publicKey, signature, "hex");
-
-console.log("Signature:", signature);
+console.log("Signature (hex):", signatureHex);
 console.log("Verified:", isVerified);

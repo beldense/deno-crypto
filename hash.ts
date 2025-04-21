@@ -1,13 +1,15 @@
-import { createHash } from "node:crypto";
+const encoder = new TextEncoder();
 
-// Create a string hash
+async function hash(input: string): Promise<string> {
+  const data = encoder.encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
 
-function hash(input: string) {
-  return createHash("sha256").update(input).digest("hex");
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-// Compare two hashed passwords
-
+// Example usage
 const password = "hello-world!";
-const hash1 = hash(password);
+const hash1 = await hash(password);
 console.log(hash1);

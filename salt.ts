@@ -1,44 +1,65 @@
-import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
-import { Buffer } from "node:buffer";
+const encoder = new TextEncoder();
+const _decoder = new TextDecoder();
 
 type User = {
   email: string;
-  password: string; // format: salt:hashedPassword
+  password: string; // format: salt:hashedPasswordHex
 };
 
-// Example in-memory user storage
 const users: User[] = [];
 
-function signup(email: string, password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const hashedPassword = scryptSync(password, salt, 64).toString("hex");
+function getRandomSalt(length = 16): Uint8Array {
+  const salt = new Uint8Array(length);
+  crypto.getRandomValues(salt);
+  return salt;
+}
 
-  const user = { email, password: `${salt}:${hashedPassword}` };
+async function hashPassword(
+  password: string,
+  salt: Uint8Array
+): Promise<string> {
+  const passwordBytes = encoder.encode(password);
+  const combined = new Uint8Array(salt.length + passwordBytes.length);
+  combined.set(salt);
+  combined.set(passwordBytes, salt.length);
+
+  const hashBuffer = await crypto.subtle.digest("SHA-512", combined);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function signup(email: string, password: string): Promise<User> {
+  const salt = getRandomSalt();
+  const saltHex = Array.from(salt)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const hashedPassword = await hashPassword(password, salt);
+  const user = { email, password: `${saltHex}:${hashedPassword}` };
 
   users.push(user);
   return user;
 }
 
-function login(email: string, password: string) {
-  const user = users.find((v) => v.email === email);
+async function login(email: string, password: string): Promise<string> {
+  const user = users.find((u) => u.email === email);
   if (!user) return "user not found";
 
-  const [salt, key] = user.password.split(":");
-  const hashedBuffer = scryptSync(password, salt, 64);
+  const [saltHex, storedHash] = user.password.split(":");
+  const salt = new Uint8Array(
+    saltHex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
+  );
 
-  const keyBuffer = Buffer.from(key, "hex");
-  const match = timingSafeEqual(hashedBuffer, keyBuffer);
+  const attemptedHash = await hashPassword(password, salt);
+  const isMatch = storedHash === attemptedHash;
 
-  if (match) {
-    return "login success!";
-  } else {
-    return "login fail!";
-  }
+  return isMatch ? "login success!" : "login fail!";
 }
 
 // Example usage
-const newUser = signup("alice@example.com", "supersecure123");
+const newUser = await signup("alice@example.com", "supersecure123");
 console.log("Signed up:", newUser);
 
-const result = login("alice@example.com", "supersecure123");
+const result = await login("alice@example.com", "supersecure123");
 console.log("Login result:", result);

@@ -1,13 +1,30 @@
-import { publicEncrypt, privateDecrypt } from "node:crypto";
-import { publicKey, privateKey } from "./keypair.ts";
-import { Buffer } from "node:buffer";
+import { encryptionKeyPair } from "./keypair.ts";
 
 const message = "the british are coming!";
+const encodedMessage = new TextEncoder().encode(message);
 
-const encryptedData = publicEncrypt(publicKey, Buffer.from(message));
+// Encrypt with public key
+const encrypted = await crypto.subtle.encrypt(
+  { name: "RSA-OAEP" },
+  encryptionKeyPair.publicKey,
+  encodedMessage
+);
 
-console.log(encryptedData.toString("hex"));
+// Decrypt with private key
+const decrypted = await crypto.subtle.decrypt(
+  { name: "RSA-OAEP" },
+  encryptionKeyPair.privateKey,
+  encrypted
+);
 
-const decryptedData = privateDecrypt(privateKey, encryptedData);
+const decryptedMessage = new TextDecoder().decode(decrypted);
 
-console.log(decryptedData.toString("utf8"));
+// Output
+console.log(
+  "Encrypted (hex):",
+  Array.from(new Uint8Array(encrypted))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+);
+
+console.log("Decrypted:", decryptedMessage);
